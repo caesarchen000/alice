@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS AI Assistant</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            background: linear-gradient(45deg, #00d4ff, #ffd700);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #888;
+            font-style: italic;
+        }
+
+        .chat-container {
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message.jarvis {
+            text-align: left;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 70%;
+            padding: 1rem 1.5rem;
+            border-radius: 20px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.jarvis .message-content {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #ffffff;
+            border-bottom-left-radius: 5px;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        #textInput {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        #textInput::placeholder {
+            color: #888;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn.recording {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            animation: pulse 1s infinite;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: #00ff00;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>JARVIS</h1>
+            <p class="subtitle">Just A Rather Very Intelligent System</p>
+        </div>
+
+        <div class="status" id="status">Connecting to JARVIS...</div>
+
+        <div class="chat-container" id="chatContainer">
+            <!-- Messages will appear here -->
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="textInput" placeholder="Ask JARVIS anything..." autocomplete="off">
+            <button class="btn" id="sendBtn">Send</button>
+            <button class="btn" id="voiceBtn">🎤</button>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="startVoiceBtn">Start Voice</button>
+            <button class="btn" id="stopVoiceBtn" disabled>Stop Voice</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        let isRecording = false;
+        let recognition = null;
+
+        // DOM elements
+        const chatContainer = document.getElementById('chatContainer');
+        const textInput = document.getElementById('textInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const startVoiceBtn = document.getElementById('startVoiceBtn');
+        const stopVoiceBtn = document.getElementById('stopVoiceBtn');
+        const status = document.getElementById('status');
+
+        // Initialize speech recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                console.log('Voice recognition started');
+                isRecording = true;
+                voiceBtn.classList.add('recording');
+                startVoiceBtn.disabled = true;
+                stopVoiceBtn.disabled = false;
+                status.textContent = 'Listening...';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('Voice input:', transcript);
+                addMessage(transcript, 'user');
+                socket.emit('voice_input', { text: transcript });
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Voice recognition error:', event.error);
+                isRecording = false;
+                voiceBtn.classList.remove('recording');
+                startVoiceBtn.disabled = false;
+                stopVoiceBtn.disabled = true;
+                status.textContent = 'Voice recognition error';
+            };
+
+            recognition.onend = () => {
+                console.log('Voice recognition ended');
+                isRecording = false;
+                voiceBtn.classList.remove('recording');
+                startVoiceBtn.disabled = false;
+                stopVoiceBtn.disabled = true;
+                status.textContent = 'Connected to JARVIS';
+            };
+        } else {
+            console.warn('Speech recognition not supported');
+            voiceBtn.style.display = 'none';
+            startVoiceBtn.style.display = 'none';
+            stopVoiceBtn.style.display = 'none';
+        }
+
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            console.log('Connected to JARVIS');
+            status.textContent = 'Connected to JARVIS';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from JARVIS');
+            status.textContent = 'Disconnected from JARVIS';
+        });
+
+        socket.on('jarvis_response', (data) => {
+            console.log('JARVIS response:', data);
+            addMessage(data.message, 'jarvis');
+            
+            // Speak the response
+            if (data.type === 'response' && 'speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(data.message);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                utterance.volume = 0.8;
+                
+                // Try to find a male voice
+                const voices = speechSynthesis.getVoices();
+                const maleVoice = voices.find(voice => 
+                    voice.name.includes('Male') || 
+                    voice.name.includes('David') || 
+                    voice.name.includes('Mark')
+                );
+                
+                if (maleVoice) {
+                    utterance.voice = maleVoice;
+                }
+                
+                speechSynthesis.speak(utterance);
+            }
+        });
+
+        // Event listeners
+        sendBtn.addEventListener('click', sendTextMessage);
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendTextMessage();
+            }
+        });
+
+        voiceBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopVoiceRecognition();
+            } else {
+                startVoiceRecognition();
+            }
+        });
+
+        startVoiceBtn.addEventListener('click', startVoiceRecognition);
+        stopVoiceBtn.addEventListener('click', stopVoiceRecognition);
+
+        // Functions
+        function sendTextMessage() {
+            const message = textInput.value.trim();
+            if (message) {
+                addMessage(message, 'user');
+                socket.emit('text_input', { text: message });
+                textInput.value = '';
+            }
+        }
+
+        function startVoiceRecognition() {
+            if (recognition && !isRecording) {
+                recognition.start();
+            }
+        }
+
+        function stopVoiceRecognition() {
+            if (recognition && isRecording) {
+                recognition.stop();
+            }
+        }
+
+        function addMessage(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message;
+            
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html> 
