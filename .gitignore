@@ -156,4 +156,6 @@ secrets.py
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+
+config.py
