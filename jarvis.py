@@ -52,10 +52,48 @@ class Jarvis:
         self.engine.setProperty('volume', 0.8)  # Volume level
     
     def speak(self, text):
-        """Make JARVIS speak"""
+        """Make JARVIS speak in English"""
         print(f"JARVIS: {text}")
-        self.engine.say(text)
+        
+        # Process text to force English
+        processed_text = self.force_english_text(text)
+        
+        self.engine.say(processed_text)
         self.engine.runAndWait()
+    
+    def force_english_text(self, text):
+        """Force text to be English-only for speech synthesis"""
+        import re
+        
+        # Remove ALL Chinese characters first
+        processed = re.sub(r'[\u4e00-\u9fff]', '', text)
+        
+        # Convert ALL numbers to spelled-out English words
+        number_to_words = {
+            '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten',
+            '11': 'eleven', '12': 'twelve', '13': 'thirteen', '14': 'fourteen', '15': 'fifteen',
+            '16': 'sixteen', '17': 'seventeen', '18': 'eighteen', '19': 'nineteen',
+            '20': 'twenty', '21': 'twenty one', '22': 'twenty two', '23': 'twenty three',
+            '24': 'twenty four', '25': 'twenty five', '26': 'twenty six', '27': 'twenty seven',
+            '28': 'twenty eight', '29': 'twenty nine', '30': 'thirty', '31': 'thirty one',
+            '2023': 'twenty twenty three', '2024': 'twenty twenty four', '2025': 'twenty twenty five',
+            '2026': 'twenty twenty six', '2027': 'twenty twenty seven'
+        }
+        
+        # Replace numbers with spelled-out words (handle word boundaries)
+        for number, word in number_to_words.items():
+            # Replace standalone numbers
+            processed = re.sub(rf'\b{number}\b', word, processed)
+            # Replace numbers at end of sentences
+            processed = re.sub(rf'{number}([.!?])', f'{word}\\1', processed)
+            # Replace numbers with commas
+            processed = re.sub(rf'{number},', f'{word},', processed)
+        
+        # Clean up extra spaces and ensure proper formatting
+        processed = re.sub(r'\s+', ' ', processed).strip()
+        
+        return processed
     
     def listen(self):
         """Listen for voice input"""
@@ -87,7 +125,7 @@ class Jarvis:
                 messages=[
                     {
                         "role": "system",
-                        "content": f"You are {self.name}, Tony Stark's AI assistant. Respond in a helpful, slightly formal manner. Keep responses concise and engaging. Address the user as '{self.user_name}' occasionally. Be conversational and knowledgeable about any topic."
+                        "content": f"You are {self.name}, Tony Stark's AI assistant. IMPORTANT: Always respond in English only, regardless of the user's input language. CRITICAL: Always use English numerals (1, 2, 3, 2023) never Chinese numerals (一, 二, 三, 二零二三). Respond in a helpful, slightly formal manner. Keep responses concise and engaging. Address the user as '{self.user_name}' occasionally. Be conversational and knowledgeable about any topic. NEVER respond in Chinese or any other language - English only. ALWAYS use English numbers and dates."
                     },
                     {
                         "role": "user",

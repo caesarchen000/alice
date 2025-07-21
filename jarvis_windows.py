@@ -112,29 +112,54 @@ class JarvisWindows:
             print("Voice not available - text only mode")
     
     def process_text_for_siri_speech(self, text):
-        """Process text to sound more natural like Siri"""
-        processed = text
+        """Process text to sound more natural like Siri and force English"""
+        import re
+        
+        # Remove ALL Chinese characters first
+        processed = re.sub(r'[\u4e00-\u9fff]', '', text)
+        
+        # Convert ALL numbers to spelled-out English words
+        number_to_words = {
+            '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten',
+            '11': 'eleven', '12': 'twelve', '13': 'thirteen', '14': 'fourteen', '15': 'fifteen',
+            '16': 'sixteen', '17': 'seventeen', '18': 'eighteen', '19': 'nineteen',
+            '20': 'twenty', '21': 'twenty one', '22': 'twenty two', '23': 'twenty three',
+            '24': 'twenty four', '25': 'twenty five', '26': 'twenty six', '27': 'twenty seven',
+            '28': 'twenty eight', '29': 'twenty nine', '30': 'thirty', '31': 'thirty one',
+            '2023': 'twenty twenty three', '2024': 'twenty twenty four', '2025': 'twenty twenty five',
+            '2026': 'twenty twenty six', '2027': 'twenty twenty seven'
+        }
+        
+        # Replace numbers with spelled-out words (handle word boundaries)
+        for number, word in number_to_words.items():
+            # Replace standalone numbers
+            processed = re.sub(rf'\b{number}\b', word, processed)
+            # Replace numbers at end of sentences
+            processed = re.sub(rf'{number}([.!?])', f'{word}\\1', processed)
+            # Replace numbers with commas
+            processed = re.sub(rf'{number},', f'{word},', processed)
         
         # Add natural pauses and emphasis like Siri
-        if any(word in text.lower() for word in ['hello', 'hi', 'good morning', 'good afternoon', 'good evening']):
+        if any(word in processed.lower() for word in ['hello', 'hi', 'good morning', 'good afternoon', 'good evening']):
             processed = processed.replace('.', '...')
         
         # Add emphasis to important words
         emphasis_words = ['JARVIS', 'Sir', 'Tony', 'Stark', 'Iron Man', 'Stark Industries']
         for word in emphasis_words:
-            if word.lower() in text.lower():
+            if word.lower() in processed.lower():
                 processed = processed.replace(word, f"<emphasis>{word}</emphasis>")
         
         # Add natural pauses before responses
-        if text.startswith('I') or text.startswith('Well') or text.startswith('Let me'):
+        if processed.startswith('I') or processed.startswith('Well') or processed.startswith('Let me'):
             processed = f"<break time='300ms'/> {processed}"
         
         # Add pauses for dramatic effect
-        if '?' in text:
+        if '?' in processed:
             processed = processed.replace('?', '? <break time="200ms"/>')
         
         # Add pauses for natural flow
-        if ',' in text:
+        if ',' in processed:
             processed = processed.replace(',', ', <break time="100ms"/>')
         
         # Escape quotes for PowerShell
@@ -169,12 +194,16 @@ class JarvisWindows:
                     {
                         "role": "system",
                         "content": f"""You are {self.name}, Tony Stark's AI assistant with a personality similar to Siri. 
+                        IMPORTANT: Always respond in English only, regardless of the user's input language.
+                        CRITICAL: Always use English numerals (1, 2, 3, 2023) never Chinese numerals (一, 二, 三, 二零二三).
                         Respond in a helpful, slightly formal but friendly manner. 
                         Keep responses concise (1-2 sentences) and engaging.
                         Address the user as '{self.user_name}' occasionally.
                         Be conversational, knowledgeable, and slightly witty like Siri.
                         Use natural speech patterns with occasional pauses and emphasis.
-                        Show personality and intelligence like Siri but with JARVIS's helpfulness."""
+                        Show personality and intelligence like Siri but with JARVIS's helpfulness.
+                        NEVER respond in Chinese or any other language - English only.
+                        ALWAYS use English numbers and dates."""
                     },
                     {
                         "role": "user",
