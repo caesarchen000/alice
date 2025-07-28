@@ -39,14 +39,30 @@ An Iron Man-inspired AI assistant with voice capabilities, built with Python and
 
 ## 🎯 Usage
 
-### Main JARVIS (Voice-enabled)
+### GUI Interface (Recommended)
+For a modern messenger-like interface with text and voice input:
+
+```bash
+python jarvis_gui.py
+# or
+python launch_jarvis_gui.py
+```
+
+### Command Line Interface
+
+#### Main JARVIS (Voice-enabled)
 ```bash
 python jarvis_windows.py
 ```
 
-### Basic JARVIS (Text-only)
+#### Basic JARVIS (Text-only)
 ```bash
 python jarvis.py
+```
+
+#### macOS Optimized
+```bash
+python jarvis_macos.py
 ```
 
 ## 🎤 Voice Features
