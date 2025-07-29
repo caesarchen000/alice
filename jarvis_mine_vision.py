@@ -17,6 +17,7 @@ import datetime
 import base64
 from PIL import Image, ImageTk
 import io
+# import pyautogui  # For screen capture - temporarily disabled
 
 # Import ALL JARVIS functionality from jarvis_mine.py
 from jarvis_mine import Jarvis, JarvisAgent, fetch_html, pipeline, question_extraction_agent, keyword_extraction_agent, qa_agent, search
@@ -266,21 +267,23 @@ class ModernJarvisVisionGUI:
         )
         self.image_button.grid(row=0, column=3, padx=(0, 10))  # Remove sticky for better alignment
         
-        # Clear image button
-        self.clear_image_button = tk.Button(
+
+        
+        # Screen capture button
+        self.screen_capture_button = tk.Button(
             input_frame,
-            text="🗑️",
-            font=('Helvetica', 12),
-            bg='#f85149',
+            text="🖥️",
+            font=('Helvetica', 16),
+            bg='#1f6feb',  # Blue color for screen capture
             fg='white',
             relief='flat',
             bd=0,
-            padx=10,
-            pady=6,  # Reduced padding to match single line
+            padx=15,
+            pady=6,
             cursor='hand2',
-            command=self.clear_image
+            command=self.capture_screen
         )
-        self.clear_image_button.grid(row=0, column=4)  # Remove sticky for better alignment
+        self.screen_capture_button.grid(row=0, column=4, padx=(0, 10))
         
         # Bind hover effects
         self.bind_hover_effects()
@@ -321,8 +324,8 @@ class ModernJarvisVisionGUI:
                 event.widget.configure(bg='#f85149')
             elif event.widget == self.image_button:
                 event.widget.configure(bg='#b694e8')
-            elif event.widget == self.clear_image_button:
-                event.widget.configure(bg='#f85149')
+            elif event.widget == self.screen_capture_button:
+                event.widget.configure(bg='#388bfd')  # Lighter blue on hover
         
         def on_leave(event):
             if event.widget == self.send_button:
@@ -331,8 +334,8 @@ class ModernJarvisVisionGUI:
                 event.widget.configure(bg='#da3633')
             elif event.widget == self.image_button:
                 event.widget.configure(bg='#9c6ade')
-            elif event.widget == self.clear_image_button:
-                event.widget.configure(bg='#f85149')
+            elif event.widget == self.screen_capture_button:
+                event.widget.configure(bg='#1f6feb')  # Original blue
         
         self.send_button.bind('<Enter>', on_enter)
         self.send_button.bind('<Leave>', on_leave)
@@ -340,8 +343,8 @@ class ModernJarvisVisionGUI:
         self.voice_button.bind('<Leave>', on_leave)
         self.image_button.bind('<Enter>', on_enter)
         self.image_button.bind('<Leave>', on_leave)
-        self.clear_image_button.bind('<Enter>', on_enter)
-        self.clear_image_button.bind('<Leave>', on_leave)
+        self.screen_capture_button.bind('<Enter>', on_enter)
+        self.screen_capture_button.bind('<Leave>', on_leave)
     
     def select_image(self):
         """Select an image file"""
@@ -377,11 +380,49 @@ class ModernJarvisVisionGUI:
             except Exception as e:
                 messagebox.showerror("Error", f"Could not load image: {e}")
     
-    def clear_image(self):
-        """Clear the selected image"""
-        self.image_data = None
-        self.image_preview.configure(image="", text="No image selected")
-        self.animate_status("Image cleared", "#8b949e")
+
+    
+    def capture_screen(self):
+        """Capture the current screen and use it as input image"""
+        try:
+            # Try to use mss library first (usually available)
+            try:
+                import mss
+                with mss.mss() as sct:
+                    # Capture the entire screen
+                    screenshot = sct.shot()
+                    # Load the screenshot with PIL
+                    screenshot_img = Image.open(screenshot)
+                    # Clean up the temporary file
+                    os.remove(screenshot)
+                    
+                    # Convert PIL image to base64 for AI processing
+                    img_buffer = io.BytesIO()
+                    screenshot_img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
+                    self.image_data = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                    
+                    # Update the image preview
+                    self.current_image = screenshot_img
+                    self.image_preview.configure(text="Screen captured - Desktop")
+                    
+                    # Show the image preview area
+                    self.image_frame.grid()
+                    
+                    # Show status
+                    self.animate_status("Screen captured successfully!", "#58a6ff")
+                    
+            except ImportError:
+                # Fallback: show a message to install mss
+                self.animate_status("Screen capture requires 'mss' library. Install with: pip install mss", "#f85149")
+                messagebox.showinfo("Screen Capture", 
+                    "To enable screen capture, please install the 'mss' library:\n\n"
+                    "pip install mss\n\n"
+                    "Or use the 'Select Image' button to choose an image file instead.")
+                
+        except Exception as e:
+            print(f"Screen capture error: {e}")
+            self.animate_status("Screen capture failed", "#f85149")
     
     def on_input_change(self, event=None):
         """Handle input field changes"""
@@ -461,9 +502,6 @@ class ModernJarvisVisionGUI:
         
         # Queue the message for processing
         self.user_message_queue.put((message, self.image_data))
-        
-        # Clear image after sending
-        self.clear_image()
     
     def animate_status(self, text, color):
         """Animate status bar with color transition"""
