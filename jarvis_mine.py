@@ -103,11 +103,15 @@ class Jarvis:
     def get_ai_response(self, user_input):
         """Get AI response - either casual chat or Q&A based on input type"""
         try:
+            # Get current date and time for context
+            current_date = datetime.datetime.now().strftime("%B %d, %Y")
+            current_time = datetime.datetime.now().strftime("%I:%M %p")
+            
             # Check if this is a casual conversation or a question that needs web search
             if self.is_casual_conversation(user_input):
                 # Use direct AI response for casual chat with memory
                 messages = [
-                    {"role": "system", "content": f"You are JARVIS, a friendly AI assistant. You're chatting with {self.user_name}. Be conversational, friendly, and engaging. Keep responses natural and not too formal. You can ask questions, share thoughts, and have a normal conversation. Remember previous parts of the conversation to maintain context."}
+                    {"role": "system", "content": f"You are JARVIS, a friendly AI assistant. You're chatting with {self.user_name}. Be conversational, friendly, and engaging. Keep responses natural and not too formal. You can ask questions, share thoughts, and have a normal conversation. Remember previous parts of the conversation to maintain context. CURRENT DATE: {current_date} at {current_time}"}
                 ]
                 
                 # Add conversation history (last 10 exchanges)
@@ -145,8 +149,12 @@ class Jarvis:
     def get_ai_response_with_vision(self, user_input, image_data=None):
         """Get AI response with vision support for image analysis"""
         try:
+            # Get current date and time for context
+            current_date = datetime.datetime.now().strftime("%B %d, %Y")
+            current_time = datetime.datetime.now().strftime("%I:%M %p")
+            
             messages = [
-                {"role": "system", "content": f"You are JARVIS, a friendly AI assistant with vision capabilities. You're chatting with {self.user_name}. You can see and analyze images. Be conversational, friendly, and engaging. Keep responses natural and not too formal. You can ask questions, share thoughts, and have a normal conversation. Remember previous parts of the conversation to maintain context."}
+                {"role": "system", "content": f"You are JARVIS, a friendly AI assistant with vision capabilities. You're chatting with {self.user_name}. You can see and analyze images. Be conversational, friendly, and engaging. Keep responses natural and not too formal. You can ask questions, share thoughts, and have a normal conversation. Remember previous parts of the conversation to maintain context. CURRENT DATE: {current_date} at {current_time}"}
             ]
             
             # Add conversation history

@@ -13,13 +13,13 @@ import pyaudio
 import time
 import os
 import sys
-from datetime import datetime
+import datetime
 import base64
 from PIL import Image, ImageTk
 import io
 
-# Import JARVIS functionality from jarvis_mine.py
-from jarvis_mine import Jarvis
+# Import ALL JARVIS functionality from jarvis_mine.py
+from jarvis_mine import Jarvis, JarvisAgent, fetch_html, pipeline, question_extraction_agent, keyword_extraction_agent, qa_agent, search
 
 class ModernJarvisVisionGUI:
     def __init__(self):
@@ -36,6 +36,11 @@ class ModernJarvisVisionGUI:
         
         # Initialize JARVIS
         self.jarvis = Jarvis()
+        
+        # Also have direct access to all functions and agents
+        self.question_agent = question_extraction_agent
+        self.keyword_agent = keyword_extraction_agent
+        self.qa_agent = qa_agent
         
         # Speech recognition setup
         self.recognizer = sr.Recognizer()
@@ -92,8 +97,12 @@ class ModernJarvisVisionGUI:
         # Status bar with animations
         self.setup_status_bar(main_container)
         
-        # Welcome message
-        self.add_message("JARVIS", "Good evening, Sir. JARVIS ready for your commands. I can now see images too!", "assistant")
+        # Welcome message and speak it
+        welcome_message = "Good evening, Sir. JARVIS ready for your commands. I can now see images too!"
+        self.add_message("JARVIS", welcome_message, "assistant")
+        
+        # Speak the welcome message
+        threading.Thread(target=self.jarvis.speak, args=(welcome_message,), daemon=True).start()
     
     def setup_modern_header(self, parent):
         """Setup ultra-modern header with gradient and effects"""
@@ -142,7 +151,7 @@ class ModernJarvisVisionGUI:
             fg='#c9d1d9',
             insertbackground='#58a6ff',
             selectbackground='#21262d',
-            font=('Helvetica', 11),
+            font=('Helvetica', 13),  # Bigger font
             relief='flat',
             bd=0,
             padx=20,
@@ -167,6 +176,7 @@ class ModernJarvisVisionGUI:
         input_frame = tk.Frame(parent, bg='#0d1117')
         input_frame.grid(row=2, column=0, sticky='ew', pady=(0, 20))
         input_frame.grid_columnconfigure(0, weight=1)
+        input_frame.grid_rowconfigure(0, weight=1)  # Allow vertical centering
         
         # Image preview area
         self.image_frame = tk.Frame(input_frame, bg='#0d1117', height=100)
@@ -185,22 +195,22 @@ class ModernJarvisVisionGUI:
         )
         self.image_preview.pack(expand=True, fill='both', padx=10, pady=5)
         
-        # Input field with modern styling (bigger)
+        # Input field with modern styling (single line)
         self.text_input = tk.Text(
             input_frame,
-            font=('Helvetica', 12),
+            font=('Helvetica', 18),  # Bigger font for better readability
             bg='#161b22',
             fg='#c9d1d9',
             insertbackground='#58a6ff',
             relief='flat',
             bd=0,
-            highlightthickness=1,
+            highlightthickness=2,  # Thicker border to match button
             highlightbackground='#30363d',
             highlightcolor='#58a6ff',
-            height=3,  # Make it 3 lines tall
-            wrap=tk.WORD
+            height=1,  # Single line height
+            wrap=tk.NONE  # No word wrapping for single line
         )
-        self.text_input.grid(row=1, column=0, sticky='ew', padx=(0, 10))
+        self.text_input.grid(row=0, column=0, sticky='ew', padx=(0, 10))  # Just expand horizontally
         self.text_input.bind('<Return>', self.send_message)
         self.text_input.bind('<KeyRelease>', self.on_input_change)
         self.text_input.bind('<Shift-Return>', lambda e: None)  # Allow Shift+Enter for new line
@@ -209,17 +219,20 @@ class ModernJarvisVisionGUI:
         self.send_button = tk.Button(
             input_frame,
             text="Send",
-            font=('Helvetica', 11, 'bold'),
+            font=('Helvetica', 16, 'bold'),
             bg='#238636',
-            fg='white',
+            fg='#58a6ff',  # Blue text for better visibility
             relief='flat',
             bd=0,
             padx=20,
-            pady=8,
+            pady=6,  # Reduced padding to match single line
             cursor='hand2',
             command=self.send_message
         )
-        self.send_button.grid(row=1, column=1, padx=(0, 10))
+        self.send_button.grid(row=0, column=1, padx=(0, 10))  # Remove sticky for better alignment
+        
+        # Initialize send button state
+        self.send_button.configure(state='disabled')
         
         # Voice button with modern styling
         self.voice_button = tk.Button(
@@ -231,11 +244,11 @@ class ModernJarvisVisionGUI:
             relief='flat',
             bd=0,
             padx=15,
-            pady=8,
+            pady=6,  # Reduced padding to match single line
             cursor='hand2',
             command=self.toggle_voice_input
         )
-        self.voice_button.grid(row=1, column=2, padx=(0, 10))
+        self.voice_button.grid(row=0, column=2, padx=(0, 10))  # Remove sticky for better alignment
         
         # Image button with modern styling
         self.image_button = tk.Button(
@@ -247,11 +260,11 @@ class ModernJarvisVisionGUI:
             relief='flat',
             bd=0,
             padx=15,
-            pady=8,
+            pady=6,  # Reduced padding to match single line
             cursor='hand2',
             command=self.select_image
         )
-        self.image_button.grid(row=1, column=3, padx=(0, 10))
+        self.image_button.grid(row=0, column=3, padx=(0, 10))  # Remove sticky for better alignment
         
         # Clear image button
         self.clear_image_button = tk.Button(
@@ -263,11 +276,11 @@ class ModernJarvisVisionGUI:
             relief='flat',
             bd=0,
             padx=10,
-            pady=8,
+            pady=6,  # Reduced padding to match single line
             cursor='hand2',
             command=self.clear_image
         )
-        self.clear_image_button.grid(row=1, column=4)
+        self.clear_image_button.grid(row=0, column=4)  # Remove sticky for better alignment
         
         # Bind hover effects
         self.bind_hover_effects()
@@ -372,9 +385,14 @@ class ModernJarvisVisionGUI:
     
     def on_input_change(self, event=None):
         """Handle input field changes"""
-        if self.text_input.get("1.0", tk.END).strip():
-            self.send_button.configure(state='normal')
-        else:
+        try:
+            current_text = self.text_input.get("1.0", tk.END).strip()
+            if current_text:
+                self.send_button.configure(state='normal')
+            else:
+                self.send_button.configure(state='disabled')
+        except Exception as e:
+            print(f"Error in input change handler: {e}")
             self.send_button.configure(state='disabled')
     
     def show_typing_indicator(self):
@@ -404,13 +422,13 @@ class ModernJarvisVisionGUI:
     
     def add_message(self, sender, message, message_type, image_path=None):
         """Add a message to the conversation area with modern styling"""
-        timestamp = datetime.now().strftime("%H:%M")
+        timestamp = datetime.datetime.now().strftime("%H:%M")
         
         # Configure tags for different message types
-        self.conversation_text.tag_configure("user", foreground="#58a6ff", font=('Helvetica', 14, 'bold'))
-        self.conversation_text.tag_configure("assistant", foreground="#c9d1d9", font=('Helvetica', 11))
-        self.conversation_text.tag_configure("timestamp", foreground="#8b949e", font=('Helvetica', 9))
-        self.conversation_text.tag_configure("separator", foreground="#30363d", font=('Helvetica', 9))
+        self.conversation_text.tag_configure("user", foreground="#58a6ff", font=('Helvetica', 16, 'bold'))  # Bigger user text
+        self.conversation_text.tag_configure("assistant", foreground="#c9d1d9", font=('Helvetica', 14))  # Bigger assistant text
+        self.conversation_text.tag_configure("timestamp", foreground="#8b949e", font=('Helvetica', 11))  # Bigger timestamp
+        self.conversation_text.tag_configure("separator", foreground="#30363d", font=('Helvetica', 11))  # Bigger separator
         
         # Insert message with proper formatting
         self.conversation_text.insert(tk.END, f"{timestamp} ", "timestamp")
@@ -518,7 +536,10 @@ class ModernJarvisVisionGUI:
                 user_message, image_data = self.user_message_queue.get(timeout=1)
                 
                 # Get AI response with vision support
-                ai_response = self.jarvis.get_ai_response_with_vision(user_message, image_data)
+                if image_data:
+                    ai_response = self.jarvis.get_ai_response_with_vision(user_message, image_data)
+                else:
+                    ai_response = self.jarvis.get_ai_response(user_message)
                 
                 # Queue the response
                 self.response_queue.put(ai_response)
@@ -554,6 +575,32 @@ class ModernJarvisVisionGUI:
     def run(self):
         """Run the GUI"""
         self.root.mainloop()
+    
+    # Utility methods to demonstrate using all imported functionality
+    
+    def extract_question(self, user_input):
+        """Use the question extraction agent directly"""
+        return self.question_agent.inference(user_input)
+    
+    def extract_keywords(self, question):
+        """Use the keyword extraction agent directly"""
+        return self.keyword_agent.inference(question)
+    
+    def search_web_directly(self, keywords):
+        """Use the search function directly"""
+        return search(keywords)
+    
+    def fetch_webpage_directly(self, url):
+        """Use the fetch_html function directly"""
+        return fetch_html(url)
+    
+    def process_with_pipeline(self, question):
+        """Use the pipeline function directly"""
+        return pipeline(question)
+    
+    def create_custom_agent(self, role, task):
+        """Create a custom JarvisAgent"""
+        return JarvisAgent(role, task, self.jarvis)
 
 def main():
     """Main function"""
